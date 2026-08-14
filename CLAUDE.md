@@ -71,17 +71,18 @@ Rule of thumb given to Jaden: *if it needs to happen instantly without a refresh
 
 Four collections, finalized design:
 
-### User
+### User — `backend/models/user.js`
 ```js
 {
-  username: { type: String, required: true, unique: true, trim: true, minlength: 3, maxlength: 20 },
+  username: { type: String, required: true, unique: true, trim: true, minlength: 3, maxlength: 30 },
   email: { type: String, required: true, unique: true, trim: true, lowercase: true },
-  password: { type: String, required: true, minlength: 8 },  // hashed via pre('save') hook — not yet implemented
-  online: { type: Boolean, default: false },
+  password: { type: String, required: true, minlength: 8, select: false },
+  avatarUrl: { type: String, default: '' },
+  isOnline: { type: Boolean, default: false },
   lastSeen: { type: Date, default: Date.now },
 }, { timestamps: true }
 ```
-Status: **finalized and written**. Password hashing via `pre('save')` middleware discussed as the next concept but **not yet implemented in code**.
+Status: **finalized and written, including the `pre('save')` password-hashing hook** (bcrypt, salt round 10, only re-hashes when `isModified('password')`). Field names differ slightly from the original design doc (`isOnline` not `online`, added `avatarUrl`, `password` has `select: false` so it's excluded from queries by default). `password` is also marked `select: false` — a query like `User.find()` won't return the hash unless explicitly requested with `.select('+password')`.
 
 No manual `userId` field — MongoDB's auto-generated `_id` (ObjectId) is used as the user identifier everywhere (contacts, conversations, messages, JWT payload).
 
@@ -93,27 +94,30 @@ No manual `userId` field — MongoDB's auto-generated `_id` (ObjectId) is used a
   status: "pending" | "accepted"
 }
 ```
-Status: **designed conceptually, not yet written as code.** Deliberately a separate collection rather than an array field on User, since querying "who has userA added" bidirectionally gets messy with embedded arrays.
+Status: **designed conceptually, not yet written as code.** This is the next uncoded model. Deliberately a separate collection rather than an array field on User, since querying "who has userA added" bidirectionally gets messy with embedded arrays.
 
-### Conversation
+### Conversation — `backend/models/Conversation.js`
 ```js
 {
-  participants: [ObjectId] // ref: 'User'
-}
+  participants: { type: [ObjectId] /* ref: 'User' */, required: true }, // validated: length >= 2
+  isGroup: { type: Boolean, default: false },
+  groupName: { type: String, trim: true, required: function() { return this.isGroup; } },
+  groupAdmin: { type: ObjectId, ref: 'User', required: function() { return this.isGroup; } },
+  lastMessage: { type: ObjectId, ref: 'Message' },
+}, { timestamps: true }
 ```
-Status: **designed conceptually, not yet written as code.** Designed as a participants array (not hardcoded to exactly 2 users) so group chats are a natural extension later, even though the current scope is 1:1 only.
+Status: **written**, and expanded beyond the original design — group-chat scaffolding (`isGroup`, `groupName`, `groupAdmin`) and a `lastMessage` ref (useful later for rendering a conversation list preview without a separate query) were added while coding it, not just the plain `participants` array originally sketched.
 
-### Message
+### Message — `backend/models/Message.js`
 ```js
 {
-  conversationId: { type: ObjectId, ref: 'Conversation', required: true },
-  senderId: { type: ObjectId, ref: 'User', required: true },
-  text: { type: String, required: true },
+  conversation: { type: ObjectId, ref: 'Conversation', required: true },
+  sender: { type: ObjectId, ref: 'User', required: true },
+  content: { type: String, required: true, trim: true, maxlength: 5000 },
   readBy: [{ type: ObjectId, ref: 'User' }],
 }, { timestamps: true }
 ```
-Status: **designed conceptually, not yet written as code.**
-Needs a compound index: `messageSchema.index({ conversationId: 1, createdAt: -1 })` — required for performant history lookups at scale, discussed but not yet added.
+Status: **written**, including the compound index `messageSchema.index({ conversation: 1, createdAt: 1 })`. Note the field names ended up as `conversation`/`sender`/`content` rather than the originally sketched `conversationId`/`senderId`/`text` — keep this in mind when writing routes/queries against this model.
 
 ## Nine-Phase Build Plan
 
@@ -134,14 +138,31 @@ Needs a compound index: `messageSchema.index({ conversationId: 1, createdAt: -1 
 
 - [x] Architecture decided: client-server-client, dual-channel (REST + Socket.io)
 - [x] Full data model design discussed for all 4 collections
-- [x] `User` Mongoose schema written (see above) — **no password hashing hook yet**
-- [x] Backend dependency list finalized
-- [ ] `Contact`, `Conversation`, `Message` schemas — designed but not yet coded
-- [ ] Password hashing middleware (`pre('save')`) — next concept queued up, not started
-- [ ] Phase 1 (Auth) routes — not started
+- [x] `User` Mongoose schema written, **including password hashing `pre('save')` hook**
+- [x] `Conversation` schema written (expanded with group-chat fields, see above)
+- [x] `Message` schema written, including the compound index
+- [x] Backend dependency list finalized and installed
+- [x] Repo git hygiene fixed: `.gitignore` actually populated (`.env`, `node_modules`), `node_modules` fully untracked from git history (was accidentally committed early on — verify with `git ls-files | grep -c node_modules` → should be `0`)
+- [x] `backend/.env` created (`MONGO_URI`, `JWT_SECRET`, `PORT`) — not committed, correctly gitignored
+- [x] JWT taught in depth conceptually: header.payload.signature structure, payload is base64-encoded (readable) not encrypted, signature verifies integrity not confidentiality, stateless verification is why the same token works for both REST middleware and the Socket.io handshake. No need to re-teach from scratch — a quick refresher is enough if Jaden asks.
+- [ ] `Contact` schema — still the only model not yet coded
+- [ ] `server.js` — **in progress, see status below**
+- [ ] Phase 1 (Auth) routes — not started (blocked on `server.js` being finished first)
 - [ ] Everything from Phase 2 onward — not started
 
-**Next concrete step (as of last session):** either write the `pre('save')` password-hashing hook for the User schema, or move on to coding the `Contact` schema. Confirm with Jaden which he wants to tackle first when resuming.
+### `server.js` build status (in progress)
+
+Being built line-by-line, teaching each piece before it's added. Current contents as of last session:
+```js
+require('dotenv').config();
+const express = require('express');
+const app = express();
+
+app.use(express.json());
+```
+Already covered: `dotenv` (why it must load first), the `express()` factory vs. `express.Router()` distinction (Jaden initially wrote `express.Router()` for the main app by mistake — corrected; `Router()` is for later, when routes get split into files like `authRoutes.js` and mounted with `app.use('/api/auth', authRoutes)`), and `express.json()` middleware (parses JSON request bodies into `req.body`).
+
+**Next concrete step (as of last session):** add `cors` middleware next — already explained conceptually (same-origin policy, why the React frontend on a different port needs it, `app.use(cors())` with no args for now since it's local dev). Jaden was about to write that line when this session ended. After `cors`: explain and add `helmet`, then `mongoose.connect()`, then `app.listen()`. Only after `server.js` is fully running should Phase 1 auth routes begin.
 
 ## Conventions Established So Far
 
@@ -156,3 +177,11 @@ Needs a compound index: `messageSchema.index({ conversationId: 1, createdAt: -1 
 - Don't build Phase 4 (sockets) before Phase 3 (REST messaging) is working — isolate the real-time layer from the data layer for easier debugging.
 - Don't confuse `unique: true` (a MongoDB index constraint, enforced at insert time, surfaces as error code 11000) with Mongoose validators like `required`/`minlength` (enforced in the JS layer before the DB is touched, surface as `ValidationError`).
 - Don't add a manual `userId` field — use MongoDB's native `_id`.
+- Don't confuse `express.Router()` with `express()` — `Router()` builds a mountable sub-set of routes meant to be attached to an app via `app.use()`; it has no `.listen()` and cannot serve as the main application object. Jaden made this exact mistake once; corrected.
+- Don't trust a git commit message as proof a fix landed — verify. An earlier session committed "removed node_modules from tracking and added .gitignore" but the `.gitignore` was actually empty and `node_modules` was still fully tracked; it looked done but wasn't. Always confirm with `git status` / `git ls-files` after git-hygiene changes, not just the commit log.
+
+## Security Practices Established
+
+- **Any credential committed to git is considered compromised the instant it's committed** — regardless of whether the repo is public/private, or whether the project "matters." Rotate immediately; don't spend time trying to assess actual exposure first.
+- Rotating a MongoDB credential happens in **Atlas → your Project → Database Access** (the actual DB user/password used in connection strings) — **not** the Organization-level "Users" page (that's human accounts that log into the Atlas website, a different thing entirely). Jaden mixed these up once; corrected.
+- `.env` must actually be listed in a populated `.gitignore` before it's created — verified working (empty gitignore silently defeats the purpose) before any real secrets went into `backend/.env`.
