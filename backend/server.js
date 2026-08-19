@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
+import authRoutes from './routes/authRoutes.js'
 
 const app = express();
 
@@ -12,6 +13,9 @@ const PORT = process.env.PORT || 5001
 app.use(express.json());
 app.use(cors());
 app.use(helmet());
+
+// Routes
+app.use('/api/auth', authRoutes);
 
 // Connect to MongoDB
 try {
