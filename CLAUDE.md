@@ -72,7 +72,7 @@ Rule of thumb given to Jaden: *if it needs to happen instantly without a refresh
 
 Four collections, finalized design:
 
-### User — `backend/models/user.js`
+### User — `backend/models/User.js`
 ```js
 {
   username: { type: String, required: true, unique: true, trim: true, minlength: 3, maxlength: 30 },
@@ -87,15 +87,15 @@ Status: **finalized and written, including the `pre('save')` password-hashing ho
 
 No manual `userId` field — MongoDB's auto-generated `_id` (ObjectId) is used as the user identifier everywhere (contacts, conversations, messages, JWT payload).
 
-### Contact / Relationship
+### Contact — `backend/models/Contact.js`
 ```js
 {
-  userA: { type: ObjectId, ref: 'User' },
-  userB: { type: ObjectId, ref: 'User' },
-  status: "pending" | "accepted"
-}
+  requestedBy: { type: ObjectId, ref: 'User', required: true },
+  recipient: { type: ObjectId, ref: 'User', required: true },
+  status: { type: String, enum: ['pending', 'accepted'], default: 'pending' },
+}, { timestamps: true }
 ```
-Status: **designed conceptually, not yet written as code.** This is the next uncoded model. Deliberately a separate collection rather than an array field on User, since querying "who has userA added" bidirectionally gets messy with embedded arrays.
+Status: **written.** Diverged from the original `userA`/`userB` sketch after a design discussion: a plain `userA`/`userB` pair can't express *who initiated* the request, which is needed for accept/reject flows. Jaden's first instinct was a boolean flag, corrected to two explicitly-named `ObjectId` refs instead (`requestedBy` / `recipient`) — avoids the redundancy of storing the same person's ID in two different fields, and avoids an implicit "true means which person?" convention. Still a separate collection rather than an array field on `User`, since querying "who has requested me" needs to work bidirectionally.
 
 ### Conversation — `backend/models/Conversation.js`
 ```js
@@ -146,31 +146,38 @@ Status: **written**, including the compound index `messageSchema.index({ convers
 - [x] Repo git hygiene fixed: `.gitignore` actually populated (`.env`, `node_modules`), `node_modules` fully untracked from git history (was accidentally committed early on — verify with `git ls-files | grep -c node_modules` → should be `0`)
 - [x] `backend/.env` created (`MONGO_URI`, `JWT_SECRET`, `PORT`) — not committed, correctly gitignored
 - [x] JWT taught in depth conceptually: header.payload.signature structure, payload is base64-encoded (readable) not encrypted, signature verifies integrity not confidentiality, stateless verification is why the same token works for both REST middleware and the Socket.io handshake. No need to re-teach from scratch — a quick refresher is enough if Jaden asks.
-- [ ] `Contact` schema — still the only model not yet coded
-- [ ] `server.js` — **in progress, see status below**
-- [ ] Phase 1 (Auth) routes — not started (blocked on `server.js` being finished first)
-- [ ] Everything from Phase 2 onward — not started
+- [x] `Contact` schema written — all 4 models complete
+- [x] Backend converted from CommonJS to ESM (`"type": "module"`, all `require`/`module.exports` replaced with `import`/`export`) — see Tech Stack row above
+- [x] `server.js` fully built and tested: `dotenv` → middleware (`express.json`, `cors`, `helmet`) → `mongoose.connect()` (top-level `await`, no wrapper function needed thanks to ESM) → `app.listen()` nested inside the connection's success path so the server never accepts requests before the DB is ready. Boots cleanly, confirmed connecting to the real Atlas cluster.
+- [x] `npm run dev` script added (`"dev": "nodemon server.js"`) for auto-restart during development
+- [x] **Phase 1 (Auth) — complete.** `POST /api/auth/signup` and `POST /api/auth/login` both built, debugged, and verified working end-to-end against the real database (see build notes below).
+- [ ] Phase 2 (Contacts) — not started. This is the next work to pick up.
+- [ ] Everything from Phase 3 onward — not started
 
-### `server.js` build status (in progress)
+### Phase 1 (Auth) build notes
 
-Being built line-by-line, teaching each piece before it's added. Current contents as of last session:
-```js
-require('dotenv').config();
-const express = require('express');
-const app = express();
+**Structure:** Route/Controller separation, established as a standing convention going forward (Jaden's request, for organization) — `backend/routes/authRoutes.js` stays thin (just `router.post('/signup', signup)` style wiring, named imports from the controller), all actual logic lives in `backend/controllers/authController.js`. Mounted in `server.js` via `app.use('/api/auth', authRoutes)`.
 
-app.use(express.json());
-```
-Already covered: `dotenv` (why it must load first), the `express()` factory vs. `express.Router()` distinction (Jaden initially wrote `express.Router()` for the main app by mistake — corrected; `Router()` is for later, when routes get split into files like `authRoutes.js` and mounted with `app.use('/api/auth', authRoutes)`), and `express.json()` middleware (parses JSON request bodies into `req.body`).
+**`signup`:** destructures `{ username, email, password }` from `req.body`, calls `User.create(...)` (triggers the password-hashing `pre('save')` hook automatically), signs a JWT (`{ userId }` payload, `expiresIn: '7d'`), responds `201` with `{ token, user: { id, username } }` — never the raw document. `catch` block differentiates `11000` (duplicate key → `409`) from `ValidationError` (→ `400`) from anything else (→ `500`, logged with `console.error`).
 
-**Next concrete step (as of last session):** add `cors` middleware next — already explained conceptually (same-origin policy, why the React frontend on a different port needs it, `app.use(cors())` with no args for now since it's local dev). Jaden was about to write that line when this session ended. After `cors`: explain and add `helmet`, then `mongoose.connect()`, then `app.listen()`. Only after `server.js` is fully running should Phase 1 auth routes begin.
+**`login`:** destructures `{ email, password }`, looks up the user with `User.findOne({ email }).select('+password')` (required since `password` has `select: false` — the `+` prefix overrides that default for this one query), compares with `bcrypt.compare(password, user.password)`. **Both "no such user" and "wrong password" return the identical generic `401` message** — deliberate, to avoid letting an attacker enumerate which emails are registered by comparing error text. On success: same JWT-issuing pattern as `signup`, `200` (not `201` — nothing new is created).
+
+**Real bugs hit and fixed while building this, worth knowing about since they could resurface in similar code later:**
+1. **`pre('save')` hook crashed on the very first real signup** (`TypeError: next is not a function`) — the hook was declared `async function (next)` and still called `next()` inside. Mixing Mongoose's two middleware styles (callback-style `next` vs. promise-style `async`, no `next` param at all) doesn't work — an `async` hook must not take or call `next`, just `return`/throw. This bug passed `node --check` and even a working server boot without issue — it was only exposed the moment a real `.save()` actually executed the hook, which is a good reminder that syntax-checking and booting don't guarantee every runtime path is correct.
+2. **Missing `return` after an early-exit response inside `login`** caused `ERR_HTTP_HEADERS_SENT` — sending a `401` for "no user found" without `return`ing let execution fall through to `bcrypt.compare(password, user.password)` against a `null` user, throwing, which then hit the `catch` block and tried to send a *second* response. Standing rule now: any conditional response sent before the end of a handler must `return` immediately after.
+3. Verified via live `curl`/Postman tests against the real database at each step, not just code review — caught both bugs above this way.
 
 ## Conventions Established So Far
 
-- Model files: one Mongoose model per file, `module.exports = mongoose.model('Name', schema)` pattern, PascalCase model name matching camelCase schema variable (e.g., `userSchema` → `'User'`).
+- Model files: one Mongoose model per file, `export default mongoose.model('Name', schema)` pattern (ESM), filename PascalCase matching the model name exactly (`User.js`, not `user.js` — matters for portability, since macOS's default filesystem is case-insensitive but Linux/production typically isn't).
 - `{ timestamps: true }` used on every schema for automatic `createdAt`/`updatedAt`.
+- Route/Controller separation: route files (`backend/routes/*.js`) only wire `router.<method>(path, handlerFn)` using named imports; all actual logic lives in `backend/controllers/*.js`, exported as named exports (not default) since each controller file holds multiple handlers.
+- HTTP status code conventions, now concretely established via `signup`/`login`: `200` success (nothing created), `201` success + a resource was created, `400` validation failure, `401` auth failure (deliberately identical message for every failure reason on `login`, to avoid user enumeration — see Security Practices), `409` duplicate key, `500` unexpected server error (always `console.error`-logged server-side even though the client just gets a generic message).
 - Duplicate-key errors (Mongo error code `11000`, from `unique: true` indexes) are handled explicitly in route `catch` blocks with a 409 response — not left as generic 500s.
 - Reference fields use `mongoose.Schema.Types.ObjectId` with `ref: 'ModelName'` to enable `.populate()` later.
+- JWT payload is kept minimal — just `{ userId }`, signed with `process.env.JWT_SECRET`, `expiresIn: '7d'`. Same token-issuing snippet used in both `signup` and `login`.
+- Never send a raw Mongoose document back to the client in a response — `select: false` only hides a field from future *queries*, not from a document already in hand (e.g. right after `.create()` or a `.select('+password')` lookup). Always build an explicit response object listing only the intended fields.
+- Any conditional early-exit response inside a route handler (e.g. "user not found") must `return` immediately after sending it — otherwise execution keeps running and can attempt to send a second response later, throwing `ERR_HTTP_HEADERS_SENT`.
 
 ## Anti-Patterns to Avoid (established via corrections in earlier sessions)
 
@@ -180,9 +187,14 @@ Already covered: `dotenv` (why it must load first), the `express()` factory vs. 
 - Don't add a manual `userId` field — use MongoDB's native `_id`.
 - Don't confuse `express.Router()` with `express()` — `Router()` builds a mountable sub-set of routes meant to be attached to an app via `app.use()`; it has no `.listen()` and cannot serve as the main application object. Jaden made this exact mistake once; corrected.
 - Don't trust a git commit message as proof a fix landed — verify. An earlier session committed "removed node_modules from tracking and added .gitignore" but the `.gitignore` was actually empty and `node_modules` was still fully tracked; it looked done but wasn't. Always confirm with `git status` / `git ls-files` after git-hygiene changes, not just the commit log.
+- Don't give a Mongoose `pre('save')` hook both an `async` signature *and* a `next` parameter it calls — pick one middleware style. `async function (next) { ...; next(); }` throws `TypeError: next is not a function` at the first real `.save()`, because Mongoose doesn't pass a working callback to an async hook (it expects you to just `return`/throw). This exact bug shipped silently through `node --check` and a working server boot — it only surfaced the first time a real document was actually saved.
+- Don't send a response inside an `if` guard without `return`ing right after — execution otherwise keeps going and can hit a second `res.status().json()` later in the same request, crashing with `ERR_HTTP_HEADERS_SENT`. Hit this exactly in `login`'s "no user found" check.
+- Don't use `app.use()` in place of a method-specific route (`app.post()`, etc.) — `.use()` matches *any* HTTP method and path *prefixes*, not exact paths. It's correct for mounting middleware/routers (e.g. `app.use('/api/auth', authRoutes)`), wrong for defining an actual endpoint, since it would let the wrong HTTP method trigger a handler that should be restricted (e.g. a `GET` accidentally triggering signup logic meant only for `POST`).
 
 ## Security Practices Established
 
 - **Any credential committed to git is considered compromised the instant it's committed** — regardless of whether the repo is public/private, or whether the project "matters." Rotate immediately; don't spend time trying to assess actual exposure first.
 - Rotating a MongoDB credential happens in **Atlas → your Project → Database Access** (the actual DB user/password used in connection strings) — **not** the Organization-level "Users" page (that's human accounts that log into the Atlas website, a different thing entirely). Jaden mixed these up once; corrected.
 - `.env` must actually be listed in a populated `.gitignore` before it's created — verified working (empty gitignore silently defeats the purpose) before any real secrets went into `backend/.env`.
+- `login` returns the exact same generic `401` message for "no account with that email" and "wrong password" — deliberately. Distinguishing the two in the response would let an attacker enumerate which emails are registered just by watching which error text comes back.
+- Never send a raw Mongoose document (or an unfiltered spread of one) in an API response — `select: false` prevents accidental exposure via a lazy query, but a document already fetched in memory (e.g. via `.select('+password')` for login's comparison step) still has the real password hash sitting on it until the response is deliberately built as an explicit, whitelist-style object.
