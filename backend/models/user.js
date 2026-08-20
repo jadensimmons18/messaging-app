@@ -42,13 +42,11 @@ const userSchema = new mongoose.Schema(
 
 // .pre('save) means run this function before saving anything to be sent to mongoDB
 // The function hashes the password so that it is not sent as plain text to mongoDB
-userSchema.pre('save', async function (next) {
-
-    if (!this.isModified('password')) return next();
+userSchema.pre('save', async function () {
+    if (!this.isModified('password')) return;
 
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    next();
 });
 
 export default mongoose.model('User', userSchema);

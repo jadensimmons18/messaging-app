@@ -29,6 +29,7 @@ This is a **learning project**. The developer (Jaden) is a junior developer, com
 | Real-time | **Socket.io** | New for Jaden — the only unfamiliar core technology. Wraps the existing HTTP server; not a replacement for Express. |
 | Client | React | `socket.io-client` on the frontend, paired with backend `socket.io` |
 | Auth | JWT (`jsonwebtoken`) + `bcrypt` | Reused for both REST route protection AND Socket.io handshake authentication |
+| Module system | **ESM** (`import`/`export`), not CommonJS | Backend was converted from CommonJS to ESM mid-project (Jaden's request) so backend syntax matches the React frontend's module syntax. `backend/package.json` has `"type": "module"`. Enables top-level `await` (used in `server.js` for `mongoose.connect()`). Relative imports **require the explicit `.js` extension** (`./models/User.js`, not `./models/User`) — Jaden has hit this exact error twice already omitting it; flag it proactively whenever a new relative import is added. |
 
 ### Backend dependencies (finalized list)
 
