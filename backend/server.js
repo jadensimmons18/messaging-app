@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
 import authRoutes from './routes/authRoutes.js'
+import contactRoutes from './routes/contactRoutes.js'
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(helmet());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Connect to MongoDB
 try {
