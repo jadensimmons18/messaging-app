@@ -1,4 +1,5 @@
-import Contact from '../models/Contact.js'
+import Contact from '../models/Contact.js';
+import User from '../models/User.js';
 
 
 
@@ -32,7 +33,27 @@ export const addFriend = async (req, res) => {
     } catch (err){
         console.error(err);
         return res.status(500).json({message: "Something went wrong"});
-        
     }
     
+}
+
+export const searchUser = async (req, res) => {
+    try {
+        const {username} = req.query;
+        if (!username) {
+            return res.status(400).json({message: 'Nothing entered'});
+        }
+        // Uses regex to include partial matches and options i to make case-insensitive
+        // Must match both parameters username and be "Not Equal"($ne) to userId so that you cant search yourself
+        const users = await User.find({ 
+            username: { $regex: username, $options: 'i' }, 
+            _id: { $ne: req.userId } 
+        }).select('username avatarUrl')
+        
+        return res.status(200).json({message: 'Successful search', users});
+        
+    } catch (err) {
+        console.log("Something went wrong");
+        return res.status(500).json({message: 'Something went wrong'});
+    }
 }
