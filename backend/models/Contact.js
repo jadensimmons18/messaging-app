@@ -22,4 +22,7 @@ const contactSchema = new mongoose.Schema(
     {timestamps: true}
 )
 
+contactSchema.index({ requestedBy: 1 });
+contactSchema.index({ recipient: 1 });
+
 export default mongoose.model('Contact', contactSchema);
