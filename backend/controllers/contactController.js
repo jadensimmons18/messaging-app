@@ -53,7 +53,7 @@ export const searchUser = async (req, res) => {
         return res.status(200).json({message: 'Successful search', users});
         
     } catch (err) {
-        console.log("Something went wrong");
+        console.error(err);
         return res.status(500).json({message: 'Something went wrong'});
     }
 }

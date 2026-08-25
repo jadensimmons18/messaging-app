@@ -97,6 +97,10 @@ No manual `userId` field — MongoDB's auto-generated `_id` (ObjectId) is used a
 ```
 Status: **written.** Diverged from the original `userA`/`userB` sketch after a design discussion: a plain `userA`/`userB` pair can't express *who initiated* the request, which is needed for accept/reject flows. Jaden's first instinct was a boolean flag, corrected to two explicitly-named `ObjectId` refs instead (`requestedBy` / `recipient`) — avoids the redundancy of storing the same person's ID in two different fields, and avoids an implicit "true means which person?" convention. Still a separate collection rather than an array field on `User`, since querying "who has requested me" needs to work bidirectionally.
 
+Jaden also proposed (twice) storing contacts as an array directly on `User` instead of a separate collection/query — first eliminating `Contact` entirely, then a hybrid (`User.contacts: [ObjectId]` referencing `Contact` docs). Both were talked through and rejected: an array can't represent `pending`/`accepted` state without becoming a nested version of `Contact` anyway, and any array-on-`User` approach reintroduces a dual-write consistency problem (two documents must be updated together for one conceptual change) that a single `Contact` document avoids entirely. The actual fix for his underlying performance concern (`Contact` collection growing large) is **indexing**, not restructuring the schema — see the pending item below.
+
+**⚠️ Pending, discussed at length but not yet actually added to the file:** `contactSchema.index({ requestedBy: 1 })` and `contactSchema.index({ recipient: 1 })`. These were the direct answer to Jaden's array-vs-index performance question but got lost in the conversation before being written — add these before Phase 2 is considered fully done.
+
 ### Conversation — `backend/models/Conversation.js`
 ```js
 {
@@ -123,8 +127,8 @@ Status: **written**, including the compound index `messageSchema.index({ convers
 ## Nine-Phase Build Plan
 
 1. **Auth** — signup/login, JWT issuance, protected REST routes. (Familiar territory, refresher of finance-app pattern.)
-2. **Contacts** — REST endpoints: search users, send/accept/reject contact requests, list contacts.
-3. **REST messaging (no sockets yet)** — get-or-create conversation, fetch message history, send a message — all via plain REST first, with manual refresh. Deliberately built before sockets to isolate bugs (data layer vs. real-time layer).
+2. **Contacts** — REST endpoints: search users, send/accept/reject contact requests. (**"List all contacts" was deliberately dropped** — see Phase 2 build notes below for the reasoning; a home-screen "list conversations" endpoint replaces it, moved to Phase 3.)
+3. **REST messaging (no sockets yet)** — get-or-create conversation, fetch message history, send a message, **list conversations for the home screen (iMessage-style, sorted by recency, using `Conversation.lastMessage`)** — all via plain REST first, with manual refresh. Deliberately built before sockets to isolate bugs (data layer vs. real-time layer).
 4. **Socket.io integration** — the core new-concept phase. Covers:
    - Handshake authentication (verifying JWT at socket connection time, not per-message)
    - Rooms (grouping connected clients by conversation ID for targeted broadcasting)
@@ -151,8 +155,11 @@ Status: **written**, including the compound index `messageSchema.index({ convers
 - [x] `server.js` fully built and tested: `dotenv` → middleware (`express.json`, `cors`, `helmet`) → `mongoose.connect()` (top-level `await`, no wrapper function needed thanks to ESM) → `app.listen()` nested inside the connection's success path so the server never accepts requests before the DB is ready. Boots cleanly, confirmed connecting to the real Atlas cluster.
 - [x] `npm run dev` script added (`"dev": "nodemon server.js"`) for auto-restart during development
 - [x] **Phase 1 (Auth) — complete.** `POST /api/auth/signup` and `POST /api/auth/login` both built, debugged, and verified working end-to-end against the real database (see build notes below).
-- [ ] Phase 2 (Contacts) — not started. This is the next work to pick up.
-- [ ] Everything from Phase 3 onward — not started
+- [x] `backend/middleware/authMiddleware.js` written and tested — verifies JWT on protected routes, sets `req.userId`
+- [x] Phase 2 in progress: `POST /api/contact/request` (`addFriend`) and `GET /api/contact/search` (`searchUser`) both built, debugged, and verified end-to-end (curl + Postman)
+- [ ] Phase 2 remaining: accept/reject a pending `Contact` request (update `status` to `'accepted'`, or delete/reject it) — this is the next work to pick up
+- [ ] Missing index on `Contact.requestedBy`/`recipient` — see flag under the Contact model above
+- [ ] Everything from Phase 3 onward — not started (Phase 3 now includes `listConversations` for the home screen, see Nine-Phase Build Plan above)
 
 ### Phase 1 (Auth) build notes
 
@@ -167,6 +174,25 @@ Status: **written**, including the compound index `messageSchema.index({ convers
 2. **Missing `return` after an early-exit response inside `login`** caused `ERR_HTTP_HEADERS_SENT` — sending a `401` for "no user found" without `return`ing let execution fall through to `bcrypt.compare(password, user.password)` against a `null` user, throwing, which then hit the `catch` block and tried to send a *second* response. Standing rule now: any conditional response sent before the end of a handler must `return` immediately after.
 3. Verified via live `curl`/Postman tests against the real database at each step, not just code review — caught both bugs above this way.
 
+### Phase 2 (Contacts) build notes, so far
+
+**`authMiddleware` (`backend/middleware/authMiddleware.js`):** lives in its own folder, not inside `authController.js` — it's a cross-cutting concern reused by every future protected route, not auth-specific business logic. Reads `req.headers.authorization`, splits off the `"Bearer "` prefix, verifies with `jwt.verify(token, process.env.JWT_SECRET)`. Missing header → `401`; invalid/expired token (caught from `jwt.verify` throwing) → `401`; success → `req.userId = decoded.userId` then `next()`. Used as a second argument on protected routes: `router.post('/request', authMiddleware, addFriend)`.
+
+**Route/Controller pattern repeated for Contacts:** `backend/routes/contactRoutes.js` + `backend/controllers/contactController.js`, mounted in `server.js` as `app.use('/api/contact', contactRoutes)` — note it's singular (`/api/contact`), inconsistent with nothing else yet, just worth being aware of for future contact-related routes so they stay consistent with each other.
+
+**`addFriend`:** destructures `recipient` from `req.body`; `requestedBy` comes from `req.userId`. Guards, in order: reject `recipient === req.userId` (self-request, `400`); reject if a `Contact` already exists between the two people in *either* direction via `$or: [{requestedBy: A, recipient: B}, {requestedBy: B, recipient: A}]` (`409`) — each `$or` branch is an implicit AND of both fields, the `$or` combines the two possible directions, not the two fields; otherwise `Contact.create({ requestedBy, recipient })` (`status` defaults to `'pending'`), `201`.
+
+**`searchUser`:** `GET`, reads `req.query.username` (not `req.body` — it's a search, not a mutation). Case-insensitive partial match via `User.find({ username: { $regex: username, $options: 'i' }, _id: { $ne: req.userId } }).select('username avatarUrl')` — excludes the searcher themselves. **Known, deliberately deferred security gap:** `username` is user-controlled and passed directly as a `$regex` pattern — a real regex-injection/ReDoS risk, explicitly deferred to Phase 8 (security hardening) rather than fixed now, consistent with not skipping ahead on security concerns before their phase.
+
+**Design decision — `listContacts` dropped entirely.** Originally planned per the Nine-Phase list, but Jaden pushed back mid-build: this app should behave like iMessage, which has no "browse all your contacts" screen at all — the home screen is driven by *conversations*, not a friends list. The `Contact` model and request/accept flow are still necessary (they gate who can message whom, and track pending/accepted state) — only the dedicated "list all contacts" *endpoint* was cut. Confirmed this aligns with an existing design decision: `Conversation.lastMessage` was added specifically to support a conversation-list home screen without extra queries, so `listConversations` (Phase 3) was already anticipated by the data model even before this conversation happened.
+
+**Real bugs hit and fixed while building this — same "syntax-checks fine, breaks at runtime" pattern as Phase 1:**
+1. `const router = express.Router;` (missing parens) and a missing `export default router;` — both in `contactRoutes.js`, both would have broken the route at load/mount time.
+2. In `authMiddleware`: reassigning a `const`, calling `.split` without invoking it (`token.split` vs `token.split(' ')`), and initially no guard for a missing header, empty `catch`, and no `next()`/`req.userId` on success — built up incrementally, same "one concept, check, next concept" cadence as Phase 1.
+3. In `addFriend`: `req._id` used instead of `req.userId` (middleware doesn't set `_id`); `Contact.create({ requestedBy: "userId", recipient })` — quoted string literal instead of the variable, would have cast-errored since `requestedBy` expects an `ObjectId`, not the literal text `"userId"`.
+4. `console.log`/`console.error` placed *after* a `return` in the same block (dead code, never executes) — happened three separate times across this phase; worth double-checking on every new handler.
+5. Verified via curl (server-side proof) and Postman (client-side, since that's what Jaden actually uses for manual testing) — a Postman-specific issue came up where every request 404'd because the HTTP method dropdown was left on the default `GET` instead of `POST`; another where "No token provided" turned out to mean the `Authorization` header wasn't attached to the request in Postman at all (Postman doesn't share auth across requests automatically — has to be set per-request, or via environment variables/scripts).
+
 ## Conventions Established So Far
 
 - Model files: one Mongoose model per file, `export default mongoose.model('Name', schema)` pattern (ESM), filename PascalCase matching the model name exactly (`User.js`, not `user.js` — matters for portability, since macOS's default filesystem is case-insensitive but Linux/production typically isn't).
@@ -178,6 +204,9 @@ Status: **written**, including the compound index `messageSchema.index({ convers
 - JWT payload is kept minimal — just `{ userId }`, signed with `process.env.JWT_SECRET`, `expiresIn: '7d'`. Same token-issuing snippet used in both `signup` and `login`.
 - Never send a raw Mongoose document back to the client in a response — `select: false` only hides a field from future *queries*, not from a document already in hand (e.g. right after `.create()` or a `.select('+password')` lookup). Always build an explicit response object listing only the intended fields.
 - Any conditional early-exit response inside a route handler (e.g. "user not found") must `return` immediately after sending it — otherwise execution keeps running and can attempt to send a second response later, throwing `ERR_HTTP_HEADERS_SENT`.
+- Protected routes take `authMiddleware` as a second argument before the real handler: `router.<method>(path, authMiddleware, handlerFn)`. Downstream handlers read the authenticated user's ID from `req.userId` — never re-verify the token themselves.
+- Search/query-string endpoints (`GET` with filters) read from `req.query`, not `req.body` — `req.body` is for `POST`/mutation payloads.
+- Each resource gets its own `routes/*Routes.js` + `controllers/*Controller.js` pair, following the exact structure established for auth (`authRoutes.js`/`authController.js` → `contactRoutes.js`/`contactController.js`).
 
 ## Anti-Patterns to Avoid (established via corrections in earlier sessions)
 
@@ -190,6 +219,9 @@ Status: **written**, including the compound index `messageSchema.index({ convers
 - Don't give a Mongoose `pre('save')` hook both an `async` signature *and* a `next` parameter it calls — pick one middleware style. `async function (next) { ...; next(); }` throws `TypeError: next is not a function` at the first real `.save()`, because Mongoose doesn't pass a working callback to an async hook (it expects you to just `return`/throw). This exact bug shipped silently through `node --check` and a working server boot — it only surfaced the first time a real document was actually saved.
 - Don't send a response inside an `if` guard without `return`ing right after — execution otherwise keeps going and can hit a second `res.status().json()` later in the same request, crashing with `ERR_HTTP_HEADERS_SENT`. Hit this exactly in `login`'s "no user found" check.
 - Don't use `app.use()` in place of a method-specific route (`app.post()`, etc.) — `.use()` matches *any* HTTP method and path *prefixes*, not exact paths. It's correct for mounting middleware/routers (e.g. `app.use('/api/auth', authRoutes)`), wrong for defining an actual endpoint, since it would let the wrong HTTP method trigger a handler that should be restricted (e.g. a `GET` accidentally triggering signup logic meant only for `POST`).
+- Don't put quotes around a variable when it's meant to be a value reference — `requestedBy: "userId"` is the literal 6-character string `"userId"`, not the variable `userId`. Silent, easy-to-miss typo; surfaces as a Mongoose cast error since the schema expects an `ObjectId`, not arbitrary text.
+- Don't assume `authMiddleware` sets `req._id` — it specifically sets `req.userId`. Mixing this up (as happened once in `addFriend`) silently produces `undefined` rather than an obvious error, since JS doesn't complain about reading a property that doesn't exist.
+- Don't default to storing a relationship as an array on one of the two related documents just because it "looks more direct" — see the `Contact` model notes above. If the relationship needs its own state (`pending`/`accepted`) or must be queried from either side, model it as its own document and reach for an **index** if the concern is query performance, not a denormalized array.
 
 ## Security Practices Established
 
