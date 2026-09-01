@@ -12,7 +12,6 @@ export const addFriend = async (req, res) => {
         if (userId === recipient) {
             console.log("self request err");
             return res.status(400).json({message: "Self request"});
-            
         }
 
         // Check for duplicate request
