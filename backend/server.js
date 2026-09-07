@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import authRoutes from './routes/authRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 import conversationRoutes from './routes/conversationRoutes.js';
+import messageRoutes from './routes/messageRoutes.js';
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(helmet());
 app.use('/api/auth', authRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/conversation', conversationRoutes);
+app.use('/api/message', messageRoutes);
 
 // Connect to MongoDB
 try {

@@ -29,11 +29,44 @@ export const loadMessageHistory = async (req, res) => {
         .populate('sender', 'username avatarUrl');
 
         const total = await Message.countDocuments({ conversation: conversationId });
-        return res.status(200).json({message: 'Success'});
+        return res.status(200).json({message: 'Success', messages, total, currentPage: page});
 
     } catch (err) {
         console.error(err);
         return res.status(500).json({message: 'Something went wrong'});
     }
     
+}
+
+export const sendMessage = async (req, res) => {
+    const {conversationId} = req.params;
+    const {content} = req.body;
+
+    try {
+        const conversation = await Conversation.findById(conversationId);
+
+        if (!conversation) { // Check that the conversation exists
+            return res.status(404).json({message: 'Conversation doesnt exist'});
+        }
+        if (!conversation.participants.some((p) => p.toString() === req.userId)) { // Check that the user is in the conversation
+            return res.status(403).json({message: 'You are not authorized to make this request'});
+        }
+
+        // create message
+        const newMessage = await Message.create({conversation: conversationId, sender: req.userId, content: content});
+
+        conversation.lastMessage = newMessage._id;
+        await conversation.save();
+
+        return res.status(201).json({message: 'Successfully sent', newMessage})
+
+    } catch (err) {
+        if (err.name === "ValidationError") {
+            res.status(400).json({message: err.message});
+        }
+        else {
+            res.status(500).json({message: "Something went wrong"});
+            console.error(err);
+        }
+    }
 }
