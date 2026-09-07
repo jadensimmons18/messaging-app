@@ -36,3 +36,18 @@ export const getOrCreateConversation = async (req, res) => {
         return res.status(500).json({message: 'Something went wrong'});
     }
 }
+
+export const listConversations = async (req, res) => {
+    try {
+        const conversations = await Conversation.find({participants: req.userId})
+            .populate('participants', 'username avatarUrl')
+            .populate('lastMessage', 'content createdAt sender')
+            .sort({ updatedAt: -1 });
+    
+
+        return res.status(200).json({message: 'Successfully returnes all conversations', conversations});
+    } catch (err) {
+        console.log(err);
+        return res.status(500).json({message: 'Something went wrong'});
+    }
+}
