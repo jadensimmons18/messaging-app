@@ -39,11 +39,34 @@ export const getOrCreateConversation = async (req, res) => {
 
 export const listConversations = async (req, res) => {
     try {
-        const conversations = await Conversation.find({participants: req.userId})
-            .populate('participants', 'username avatarUrl')
-            .populate('lastMessage', 'content createdAt sender')
-            .sort({ updatedAt: -1 });
-    
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        
+        const conversations = await Conversation.find({ participants: req.userId })
+                .sort({ updatedAt: -1 })
+                .skip((page - 1) * limit)
+                .limit(limit)
+                .populate('participants', 'username avatarUrl')
+                .populate('lastMessage', 'content createdAt sender');
+
+        const total = Conversation.countDocuments({ participants: req.userId });
+        // Contact/Non-Contact separation logic
+        const contacts = await Contact.find({ // Find all accepted contacts
+            $or: [
+                { requestedBy: req.userId, status: 'accepted' },
+                { recipient: req.userId, status: 'accepted' }
+            ]
+        });
+
+        const otherIds = contacts.map(c => {
+            if (c.requestedBy.toString() === req.userId) {
+                return c.recipient.toString();
+            } else {
+                return c.requestedBy.toString();
+            }
+        });
+
+        const contactIds = new Set(otherIds);
 
         return res.status(200).json({message: 'Successfully returnes all conversations', conversations});
     } catch (err) {
