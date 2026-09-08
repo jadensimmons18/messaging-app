@@ -49,7 +49,7 @@ export const listConversations = async (req, res) => {
                 .populate('participants', 'username avatarUrl')
                 .populate('lastMessage', 'content createdAt sender');
 
-        const total = Conversation.countDocuments({ participants: req.userId });
+        const total = await Conversation.countDocuments({ participants: req.userId });
         // Contact/Non-Contact separation logic
         const contacts = await Contact.find({ // Find all accepted contacts
             $or: [
@@ -68,7 +68,27 @@ export const listConversations = async (req, res) => {
 
         const contactIds = new Set(otherIds);
 
-        return res.status(200).json({message: 'Successfully returnes all conversations', conversations});
+        const transformedConversations = conversations.map((c) => {
+
+            // create a new array excluding yourself
+            const otherParticipants = c.participants.find((p) => {
+                return p._id.toString() !== req.userId
+            }) || c.participants[0];
+
+            const isSelfConversation = otherParticipants._id.toString() === req.userId;
+            const isContact = isSelfConversation || contactIds.has(otherParticipants._id.toString());
+            
+            // return object with new field (isContact)
+            return {
+                _id: c._id,
+                otherParticipants,
+                lastMessage: c.lastMessage,
+                updatedAt: c.updatedAt,
+                isContact,
+            };
+        });
+
+        return res.status(200).json({message: 'Successfully returnes all conversations', transformedConversations, total, currentPage: page});
     } catch (err) {
         console.log(err);
         return res.status(500).json({message: 'Something went wrong'});
