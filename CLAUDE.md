@@ -124,20 +124,33 @@ Status: **written**, and expanded beyond the original design — group-chat scaf
 ```
 Status: **written**, including the compound index `messageSchema.index({ conversation: 1, createdAt: 1 })`. Note the field names ended up as `conversation`/`sender`/`content` rather than the originally sketched `conversationId`/`senderId`/`text` — keep this in mind when writing routes/queries against this model.
 
-## Nine-Phase Build Plan
+## Nine-Phase Build Plan (ORIGINAL — see Scope Change below, this is now historical)
 
 1. **Auth** — signup/login, JWT issuance, protected REST routes. (Familiar territory, refresher of finance-app pattern.)
 2. **Contacts** — REST endpoints: search users, send/accept/reject contact requests. (**"List all contacts" was deliberately dropped** — see Phase 2 build notes below for the reasoning; a home-screen "list conversations" endpoint replaces it, moved to Phase 3.)
 3. **REST messaging (no sockets yet)** — get-or-create conversation, fetch message history, send a message, **list conversations for the home screen (iMessage-style, sorted by recency, using `Conversation.lastMessage`)** — all via plain REST first, with manual refresh. Deliberately built before sockets to isolate bugs (data layer vs. real-time layer).
-4. **Socket.io integration** — the core new-concept phase. Covers:
+4. **Socket.io integration** — the core new-concept phase, **still in scope, currently in progress.** Covers:
    - Handshake authentication (verifying JWT at socket connection time, not per-message)
    - Rooms (grouping connected clients by conversation ID for targeted broadcasting)
    - Emit/listen pattern (`send_message` → server persists to MongoDB → `receive_message` broadcast to the room)
-5. **Presence & typing indicators** — more socket events layered on the same connection; introduces debouncing for typing events.
-6. **Read receipts** — updating the `readBy` array on ack from recipient; introduces race-condition/idempotency thinking.
-7. **Frontend chat UI** — message list, input, conversation sidebar; merging REST-fetched history with live socket events into one deduplicated state array.
-8. **Security hardening** — rate-limiting message sends, sanitizing message text, verifying conversation participancy before allowing room join or history fetch, never trusting client-supplied `senderId`.
-9. **Deployment** — single Node/Express + Socket.io instance is sufficient for this scope; noted limitation that multi-instance scaling requires a Redis adapter for Socket.io to broadcast correctly across instances (not needed now).
+5. ~~**Presence & typing indicators**~~ — **CUT, see Scope Change below.**
+6. ~~**Read receipts**~~ — **CUT, see Scope Change below.**
+7. ~~**Frontend chat UI**~~ (original, elaborate version) — **REPLACED with a stripped-down minimal frontend, see Scope Change below.**
+8. ~~**Security hardening**~~ — **CUT, see Scope Change below.**
+9. **Deployment** — **still in scope**, simplified further (see Scope Change below). Single Node/Express + Socket.io instance is sufficient for this scope; multi-instance scaling / Redis adapter was never needed and still isn't.
+
+## ⚠️ Scope Change (2026-09-16) — read this before planning any remaining work
+
+Jaden made a deliberate, explicit decision to **drastically cut scope** — this project was taking too long relative to other priorities, and the goal shifted from "feature-complete real-time chat app" to "ship a working minimal version, quickly." This is a real, considered project decision, not a shortcut to quietly walk back later — don't reintroduce any of the cut phases without Jaden explicitly asking.
+
+**What's cut entirely:** Phase 5 (presence/typing indicators), Phase 6 (read receipts), Phase 8 (security hardening beyond what's already built — rate limiting, the known `searchUser` regex-injection gap, message sanitization all explicitly **will not be built**). Everything already implemented for security (bcrypt hashing, JWT auth, authorization checks on every protected resource, `helmet`, indexes) stays — nothing gets *removed*, only the deferred *additional* hardening from Phase 8 is dropped from the plan.
+
+**What's kept, but minimized:**
+- **Phase 4 (Socket.io) — unchanged, still fully in scope, currently in progress.** This is core functionality (live message delivery), not polish.
+- **Phase 7 (frontend) — replaced with a bare-minimum version.** Exactly four things, nothing more: (1) signup/login screens, (2) search for a user + send a contact request (a plain accept/reject list is fine — no polished two-tab "Unknown Messages" UI), (3) a conversation list (home screen), (4) a chat window — message history + input + live delivery via the socket connection. No typing indicators, no read receipts, no presence, no avatars/styling polish beyond the bare minimum to function.
+- **Phase 9 (deployment) — still in scope.** Jaden wants this **actually deployed live on the internet**, not just run locally. Still single-instance, no scaling infrastructure (already correctly decided unnecessary at this scale) — hosting platform choice not yet decided, revisit when this phase is reached.
+
+**The new, actual remaining build order:** finish Phase 4 (Socket.io) → build the minimal frontend → deploy live. That's it — nothing after deployment.
 
 ## Current Progress Status
 
@@ -159,7 +172,8 @@ Status: **written**, including the compound index `messageSchema.index({ convers
 - [x] **Phase 2 (Contacts) — complete.** `addFriend`, `searchUser`, `listRequests`, `acceptFriend`, `rejectFriend` all built, debugged, and verified end-to-end (curl + Postman) — see build notes below.
 - [x] `Contact` indexed on `requestedBy`/`recipient` — verified actually used via `.explain()`, not just assumed
 - [x] **Phase 3 (REST messaging) — complete.** `getOrCreateConversation`, `loadMessageHistory`, `sendMessage`, `listConversations` all built, debugged, and verified end-to-end against the real database, including edge cases (query ordering, self-messaging, accepted-vs-pending tab classification) — see build notes below.
-- [ ] Everything from Phase 4 onward — not started. **This is the next work to pick up.**
+- [ ] **Phase 4 (Socket.io) — in progress.** Scope-restructuring decision made mid-phase — see "⚠️ Scope Change" above. `server.js` partially restructured: `createServer(app)`/`new Server(httpServer, {cors})` added, but a real block-scoping bug was just caught (`httpServer`/`io` declared with `const` inside the `mongoose.connect()` try block — same class of bug as `getOrCreateConversation`'s `newContact` issue — needs moving to module scope, with only `httpServer.listen()` staying gated behind the successful DB connection). Handshake auth, rooms, and the actual emit/listen pattern not started yet. **This is the next work to pick up.**
+- [ ] After Phase 4: minimal frontend (signup/login, search+add contact, conversation list, chat window — nothing more, see Scope Change above), then deploy live. **Nothing planned after deployment.**
 
 ### Phase 1 (Auth) build notes
 

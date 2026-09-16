@@ -25,16 +25,16 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/conversation', conversationRoutes);
 app.use('/api/message', messageRoutes);
 
-// Connect to MongoDB
-try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('MongoDB connected');
-    const httpServer = createServer(app);
+const httpServer = createServer(app);
     const io = new Server(httpServer, {
         cors: {
             origin: '*',
         },
     });
+
+try {
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log('MongoDB connected');
     httpServer.listen(PORT, () => console.log('On port', PORT));
 } catch (err){
     console.log(err);
