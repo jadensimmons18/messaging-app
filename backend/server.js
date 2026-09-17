@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import mongoose from 'mongoose';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import jwt from 'jsonwebtoken';
 import authRoutes from './routes/authRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 import conversationRoutes from './routes/conversationRoutes.js';
@@ -26,11 +27,31 @@ app.use('/api/conversation', conversationRoutes);
 app.use('/api/message', messageRoutes);
 
 const httpServer = createServer(app);
-    const io = new Server(httpServer, {
-        cors: {
-            origin: '*',
-        },
-    });
+const io = new Server(httpServer, {
+    cors: {
+        origin: '*',
+    },
+});
+
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+
+    if (!token) {
+        return next(new Error('No token provided'));
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        socket.userId = decoded.userId;
+        next();
+    } catch (err) {
+        next(new Error('Invalid or expired token'));
+    }
+});
+
+io.on('connection', (socket) => {
+  console.log('a user connected:', socket.id, '| userId:', socket.userId);
+});
 
 try {
     await mongoose.connect(process.env.MONGO_URI);
