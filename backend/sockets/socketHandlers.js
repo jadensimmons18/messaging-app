@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import Conversation from '../models/Conversation.js';
+import Message from '../models/Message.js';
 
 export const registerSocketHandlers = (io) => {
     io.use((socket, next) => {
@@ -38,6 +39,36 @@ export const registerSocketHandlers = (io) => {
             } catch (err) {
                 console.error(err);
                 socket.emit('error', { message: 'Something went wrong' });
+            }
+        });
+
+        socket.on('send_message', async ({ conversationId, content }) => {
+            try {
+                const conversation = await Conversation.findById(conversationId);
+
+                if (!conversation) {
+                    return socket.emit('error', { message: 'Conversation not found' });
+                }
+
+                if (!conversation.participants.some((p) => p.toString() === socket.userId)) {
+                    return socket.emit('error', { message: 'You are not authorized to send messages in this conversation' });
+                }
+
+                const newMessage = await Message.create({ conversation: conversationId, sender: socket.userId, content });
+
+                conversation.lastMessage = newMessage._id;
+                await conversation.save();
+
+                const populatedMessage = await Message.findById(newMessage._id).populate('sender', 'username avatarUrl');
+
+                io.to(conversationId).emit('receive_message', populatedMessage);
+            } catch (err) {
+                if (err.name === 'ValidationError') {
+                    socket.emit('error', { message: err.message });
+                } else {
+                    console.error(err);
+                    socket.emit('error', { message: 'Something went wrong' });
+                }
             }
         });
     });
