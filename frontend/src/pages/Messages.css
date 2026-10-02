@@ -1,0 +1,387 @@
+.messages {
+  min-height: 100vh;
+  display: flex;
+  flex-wrap: wrap;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.messages *,
+.messages *::before,
+.messages *::after {
+  box-sizing: border-box;
+}
+
+.messages h1,
+.messages h2,
+.messages p {
+  margin: 0;
+}
+
+.messages button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.messages__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- sidebar ---------- */
+
+.messages__sidebar {
+  flex: 1 1 360px;
+  min-width: 0;
+  height: 100vh;
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+}
+
+.messages__top {
+  padding: 20px 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.messages__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.messages__brand {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.messages__brand-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -0.03em;
+}
+
+.messages__title {
+  display: none;
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 34px;
+  letter-spacing: -0.035em;
+}
+
+.messages .messages__profile {
+  flex: none;
+  border-radius: 50%;
+}
+
+.messages .messages__new {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--field);
+}
+
+.messages__new:focus-visible,
+.messages__cta:focus-visible,
+.messages__profile:focus-visible,
+.messages__chip:focus-visible,
+.messages__row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.messages__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.messages__search-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.messages__search input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px 0 42px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--field);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  outline: none;
+}
+
+.messages__search input::placeholder {
+  color: var(--faint);
+}
+
+.messages__search input:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.messages__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.messages .messages__chip {
+  height: 34px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  border-radius: 17px;
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.messages .messages__chip[aria-pressed='true'] {
+  background: #3a2620;
+  box-shadow: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.messages__list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.messages__note {
+  padding: 24px 12px;
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.messages .messages__row {
+  width: 100%;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-radius: 16px;
+}
+
+.messages .messages__row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.messages .messages__row--selected {
+  background: var(--bubble);
+}
+
+.messages__row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.messages__row-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.messages__row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.messages__row-time {
+  flex: none;
+  font-size: 13px;
+  color: var(--faint);
+}
+
+.messages__row-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* ---------- right pane (desktop) ---------- */
+
+.messages__pane {
+  flex: 999 1 560px;
+  min-width: 0;
+  height: 100vh;
+  min-height: 480px;
+  padding: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.messages__pane--chat {
+  padding: 0;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.messages__empty {
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.messages__ghost {
+  width: 220px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.messages__ghost-bubble {
+  height: 40px;
+  background: var(--field);
+}
+
+.messages__ghost-bubble--in {
+  align-self: flex-start;
+  border-radius: 20px 20px 20px 6px;
+}
+
+.messages__ghost-bubble--out {
+  align-self: flex-end;
+  border-radius: 20px 20px 6px 20px;
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+.messages__empty-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.messages__empty-text {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.messages .messages__cta {
+  margin-top: 18px;
+  height: 48px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.messages .messages__cta:hover {
+  filter: brightness(1.06);
+}
+
+/* ---------- phone ---------- */
+
+@media (max-width: 760px) {
+  .messages__sidebar {
+    flex-basis: 100%;
+    height: 100dvh;
+    border-right: 0;
+    background: var(--bg);
+  }
+
+  .messages__top {
+    padding: 54px 20px 12px;
+    gap: 14px;
+  }
+
+  .messages__brand {
+    display: none;
+  }
+
+  .messages__title {
+    display: block;
+  }
+
+  /* phone header: Messages  [profile] [new message] */
+  .messages .messages__new {
+    order: 3;
+    width: 44px;
+    height: 44px;
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  .messages .messages__profile {
+    order: 2;
+  }
+
+  .messages__list {
+    padding: 2px 12px 0;
+  }
+
+  .messages .messages__row {
+    padding: 10px 8px;
+  }
+
+  .messages__pane {
+    display: none;
+  }
+
+  /* a conversation is open: show only the chat pane, full screen */
+  .messages--chat-open .messages__sidebar {
+    display: none;
+  }
+
+  .messages--chat-open .messages__pane {
+    display: flex;
+    flex-basis: 100%;
+    height: 100dvh;
+  }
+}

@@ -60,20 +60,6 @@
   letter-spacing: -0.03em;
 }
 
-.login__logo {
-  flex: none;
-  display: block;
-}
-
-.login__logo-bg,
-.login__logo-dot {
-  fill: var(--accent);
-}
-
-.login__logo-bubble {
-  fill: var(--on-accent);
-}
-
 .login__hero-body {
   flex: 1;
   max-width: 520px;

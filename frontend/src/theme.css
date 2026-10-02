@@ -1,0 +1,19 @@
+:root {
+  --bg: #161514;
+  --panel: #1d1b1a;
+  --field: #262322;
+  --border: #353130;
+  --bubble: #2f2c2a;
+  --text: #f4efeb;
+  --muted: #ada59f;
+  --faint: #8f8781;
+  --accent: #ff8466;
+  --on-accent: #2a120c;
+  --font-body: 'Geist', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Avenir Next', system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}

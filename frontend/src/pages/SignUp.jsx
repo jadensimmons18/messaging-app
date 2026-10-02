@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { AuthLayout, TextField, PasswordField } from '../components/AuthLayout.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL
@@ -9,7 +9,7 @@ function SignUp() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
-    const [signedUpAs, setSignedUpAs] = useState('')
+    const navigate = useNavigate()
 
     async function handleSubmit(e) {
         e.preventDefault()
@@ -35,7 +35,7 @@ function SignUp() {
 
             localStorage.setItem('token', data.token)
             localStorage.setItem('user', JSON.stringify(data.user))
-            setSignedUpAs(data.user.username)
+            navigate('/')
         } catch {
             setError('Could not reach the server')
         }
@@ -86,8 +86,6 @@ function SignUp() {
 
                 <button type="submit" className="login__submit">Create account</button>
             </form>
-
-            {signedUpAs && <p className="login__status">Signed up as {signedUpAs}</p>}
 
             <p className="login__switch">
                 Already on ember? <Link to="/login">Sign in</Link>
