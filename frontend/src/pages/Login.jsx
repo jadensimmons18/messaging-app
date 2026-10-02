@@ -1,0 +1,78 @@
+import { useState } from 'react'
+import { Link } from 'react-router'
+import { AuthLayout, TextField, PasswordField } from '../components/AuthLayout.jsx'
+
+const API_URL = import.meta.env.VITE_API_URL
+
+function Login() {
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [error, setError] = useState('')
+    const [loggedInAs, setLoggedInAs] = useState('')
+
+    async function handleSubmit(e) {
+        e.preventDefault()
+        setError('')
+
+        try {
+            const res = await fetch(`${API_URL}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
+            })
+            const data = await res.json()
+
+            if (!res.ok) {
+                setError(data.message)
+                return
+            }
+
+            localStorage.setItem('token', data.token)
+            localStorage.setItem('user', JSON.stringify(data.user))
+            setLoggedInAs(data.user.username)
+        } catch {
+            setError('Could not reach the server')
+        }
+    }
+
+    return (
+        <AuthLayout
+            title="Welcome back"
+            titleSuffix=" to ember"
+            subtitle="Sign in to pick up your conversations."
+        >
+            <form className="login__form" onSubmit={handleSubmit}>
+                <TextField
+                    id="email"
+                    label="Email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                />
+
+                <PasswordField
+                    id="password"
+                    label="Password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                />
+
+                {error && <p className="login__error" role="alert">{error}</p>}
+
+                <button type="submit" className="login__submit">Sign in</button>
+            </form>
+
+            {loggedInAs && <p className="login__status">Logged in as {loggedInAs}</p>}
+
+            <p className="login__switch">
+                New to ember? <Link to="/signup">Create an account</Link>
+            </p>
+        </AuthLayout>
+    )
+}
+
+export default Login
