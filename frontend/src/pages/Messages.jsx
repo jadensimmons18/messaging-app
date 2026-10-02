@@ -208,6 +208,9 @@ function Messages() {
                         conversation={conversations.find((c) => c._id === conversationId)}
                         listStatus={status}
                         onBack={() => navigate('/')}
+                        onAccepted={(id) =>
+                            setConversations((prev) => prev.map((c) => (c._id === id ? { ...c, isContact: true } : c)))
+                        }
                     />
                 ) : (
                     <div className="messages__empty">

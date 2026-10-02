@@ -15,7 +15,7 @@ function mergeMessages(a, b) {
     return [...byId.values()].sort((x, y) => new Date(x.createdAt) - new Date(y.createdAt))
 }
 
-function ChatThread({ conversation, onBack }) {
+function ChatThread({ conversation, onBack, onAccepted }) {
     const other = conversation.otherParticipants
     const me = JSON.parse(localStorage.getItem('user') ?? 'null')
 
@@ -27,6 +27,9 @@ function ChatThread({ conversation, onBack }) {
     const [draft, setDraft] = useState('')
     const [sendError, setSendError] = useState('')
     const [connected, setConnected] = useState(() => getSocket().connected)
+    const [request, setRequest] = useState(null) // pending contact request FROM the other person, if any
+    const [requestBusy, setRequestBusy] = useState(false)
+    const [requestError, setRequestError] = useState('')
 
     const listRef = useRef(null)
     const inputRef = useRef(null)
@@ -56,6 +59,29 @@ function ChatThread({ conversation, onBack }) {
             cancelled = true
         }
     }, [conversation._id])
+
+    // If they aren't a contact yet, check whether they're waiting on ME to accept.
+    // (If I was the one who started the chat, the request isn't in my list and there's nothing to show.)
+    useEffect(() => {
+        if (conversation.isContact) return
+        let cancelled = false
+
+        async function loadRequest() {
+            try {
+                const res = await apiFetch('/api/contact/requests')
+                const data = await res.json()
+                if (!res.ok || cancelled) return
+                setRequest(data.requests.find((r) => r.requestedBy._id === other._id) ?? null)
+            } catch {
+                // no banner is a safe fallback
+            }
+        }
+        loadRequest()
+
+        return () => {
+            cancelled = true
+        }
+    }, [conversation.isContact, other._id])
 
     // 2. live messages over the socket
     useEffect(() => {
@@ -123,6 +149,24 @@ function ChatThread({ conversation, onBack }) {
         setLoadingMore(false)
     }
 
+    // answer the request: accept = PATCH, reject = DELETE (the backend removes the Contact document)
+    async function answerRequest(action) {
+        setRequestBusy(true)
+        setRequestError('')
+        try {
+            const res = await apiFetch(`/api/contact/${request._id}/${action}`, {
+                method: action === 'accept' ? 'PATCH' : 'DELETE',
+            })
+            if (!res.ok) throw new Error()
+            setRequest(null)
+            if (action === 'accept') onAccepted(conversation._id)
+            else onBack()
+        } catch {
+            setRequestError('Something went wrong. Try again.')
+        }
+        setRequestBusy(false)
+    }
+
     function handleSubmit(e) {
         e.preventDefault()
         const content = draft.trim()
@@ -176,6 +220,25 @@ function ChatThread({ conversation, onBack }) {
                 <h2 className="chat__name">{other.username}</h2>
             </header>
 
+            {request && !conversation.isContact && (
+                <div className="chat__request" role="region" aria-label="Message request">
+                    <div className="chat__request-text">
+                        <p className="chat__request-title">{other.username} wants to message you</p>
+                        <p className="chat__request-sub">
+                            {requestError || `Accept to add ${other.username} to your contacts.`}
+                        </p>
+                    </div>
+                    <div className="chat__request-actions">
+                        <button type="button" className="chat__request-btn" disabled={requestBusy} onClick={() => answerRequest('reject')}>
+                            Reject
+                        </button>
+                        <button type="button" className="chat__request-btn chat__request-btn--accept" disabled={requestBusy} onClick={() => answerRequest('accept')}>
+                            Accept
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="chat__scroll" ref={listRef} onScroll={handleScroll}>
                 <div className="chat__messages">
                     {hasEarlier && (
@@ -220,9 +283,9 @@ function ChatThread({ conversation, onBack }) {
 }
 
 // `conversation` comes from the sidebar's list; undefined until that list has loaded
-function ChatWindow({ conversation, listStatus, onBack }) {
+function ChatWindow({ conversation, listStatus, onBack, onAccepted }) {
     if (conversation) {
-        return <ChatThread conversation={conversation} onBack={onBack} />
+        return <ChatThread conversation={conversation} onBack={onBack} onAccepted={onAccepted} />
     }
 
     if (listStatus === 'ready') {
