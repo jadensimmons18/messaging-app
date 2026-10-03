@@ -14,7 +14,6 @@
 
   min-height: 100vh;
   display: flex;
-  flex-wrap: wrap;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
@@ -62,7 +61,9 @@
 
 .login__hero-body {
   flex: 1;
-  max-width: 520px;
+  width: 100%;
+  max-width: 440px; /* just wider than the headline's two lines, so the block hugs its content and centering looks true */
+  align-self: center; /* centers the block horizontally within the left panel */
   display: flex;
   flex-direction: column;
   justify-content: center;

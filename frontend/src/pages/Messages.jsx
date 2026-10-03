@@ -6,6 +6,7 @@ import Avatar from '../components/Avatar.jsx'
 import Logo from '../components/Logo.jsx'
 import ChatWindow from '../components/ChatWindow.jsx'
 import NewMessageDialog from '../components/NewMessageDialog.jsx'
+import ProfileMenu from '../components/ProfileMenu.jsx'
 import { disconnectSocket, getSocket } from '../helpers/socket.js'
 import './Messages.css'
 
@@ -128,12 +129,6 @@ function Messages() {
         return c.otherParticipants.username.toLowerCase().includes(query.trim().toLowerCase())
     })
 
-    const profileButton = (
-        <button type="button" className="messages__profile" aria-label="Log out" title="Log out" onClick={handleLogout}>
-            <Avatar name={me?.username ?? ''} size={40} />
-        </button>
-    )
-
     return (
         <div className={`messages ${conversationId ? 'messages--chat-open' : ''}`}>
             <aside className="messages__sidebar">
@@ -147,7 +142,7 @@ function Messages() {
                         <button type="button" className="messages__new" aria-label="New message" onClick={() => setDialogOpen(true)}>
                             <PencilIcon />
                         </button>
-                        {profileButton}
+                        <ProfileMenu className="messages__profile" username={me?.username ?? ''} onLogout={handleLogout} />
                     </div>
 
                     <div className="messages__search">

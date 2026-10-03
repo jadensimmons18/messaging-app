@@ -1,0 +1,70 @@
+.profile {
+  position: relative;
+  flex: none;
+}
+
+.profile .profile__toggle {
+  display: block;
+  border-radius: 50%;
+}
+
+.profile__toggle:focus-visible,
+.profile__logout:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* frosted glass: a semi-transparent fill plus a blur of whatever is behind it */
+.profile__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: max-content; /* size to the username, not to the 40px avatar it is anchored to */
+  min-width: 200px;
+  max-width: min(280px, calc(100vw - 32px));
+  padding: 6px;
+  border-radius: 18px;
+  background: rgba(45, 41, 39, 0.55);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 18px 40px rgba(0, 0, 0, 0.4);
+  font-family: var(--font-body);
+  color: var(--text);
+}
+
+/* The username is a label, not a control: the divider under it separates it from the button.
+   The line is inset 6px by the margin; the 12px side padding matches the button's, so the text lines up with "Log out". */
+.profile__name {
+  margin: 0 6px 6px;
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 15px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  cursor: default;
+}
+
+.profile .profile__logout {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile .profile__logout:hover {
+  background: rgba(255, 132, 102, 0.18);
+  color: var(--accent);
+}

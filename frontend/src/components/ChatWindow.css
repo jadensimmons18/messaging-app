@@ -198,8 +198,10 @@
 }
 
 .chat__bubble {
+  position: relative;
   max-width: min(70%, 460px);
-  padding: 10px 14px;
+  padding: 10px 15px;
+  border-radius: 20px; /* fully rounded: a single line becomes a pill */
   font-size: 15px;
   line-height: 1.42;
   white-space: pre-wrap;
@@ -207,24 +209,63 @@
 }
 
 .chat__row--in .chat__bubble {
-  border-radius: 6px 20px 20px 6px;
   background: var(--field);
   color: var(--text);
 }
 
 .chat__row--out .chat__bubble {
-  border-radius: 20px 6px 6px 20px;
   background: var(--accent);
   color: var(--on-accent);
 }
 
-/* the first bubble of a group has the full round top corner */
-.chat__row--in.chat__row--start .chat__bubble {
-  border-radius: 20px 20px 20px 6px;
+/*
+ * The tail (last bubble of a group only), drawn with two pseudo-elements:
+ *  ::before  a square of the bubble's colour poking out past the bottom corner,
+ *            with a rounded inner corner — this is the "flick" of the tail
+ *  ::after   a square in the page background that carves the flick's underside
+ *            into a curve
+ * The ::after colour has to match the chat background (var(--bg)).
+ */
+.chat__row--tail .chat__bubble::before,
+.chat__row--tail .chat__bubble::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  height: 20px;
 }
 
-.chat__row--out.chat__row--start .chat__bubble {
-  border-radius: 20px 20px 6px 20px;
+.chat__row--tail .chat__bubble::before {
+  z-index: 0;
+  width: 20px;
+}
+
+.chat__row--tail .chat__bubble::after {
+  z-index: 1;
+  width: 10px;
+  height: 22px; /* 2px taller than ::before so its top edge can't leave an anti-aliasing seam */
+  background: var(--bg);
+}
+
+.chat__row--out.chat__row--tail .chat__bubble::before {
+  right: -8px;
+  background: var(--accent);
+  border-bottom-left-radius: 15px;
+}
+
+.chat__row--out.chat__row--tail .chat__bubble::after {
+  right: -10px;
+  border-bottom-left-radius: 10px;
+}
+
+.chat__row--in.chat__row--tail .chat__bubble::before {
+  left: -8px;
+  background: var(--field);
+  border-bottom-right-radius: 15px;
+}
+
+.chat__row--in.chat__row--tail .chat__bubble::after {
+  left: -10px;
+  border-bottom-right-radius: 10px;
 }
 
 .chat__note {

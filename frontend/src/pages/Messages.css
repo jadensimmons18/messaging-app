@@ -1,7 +1,6 @@
 .messages {
   min-height: 100vh;
   display: flex;
-  flex-wrap: wrap;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
@@ -42,7 +41,7 @@
 /* ---------- sidebar ---------- */
 
 .messages__sidebar {
-  flex: 1 1 360px;
+  flex: 0 0 clamp(300px, 30vw, 360px);
   min-width: 0;
   height: 100vh;
   min-height: 480px;
@@ -88,11 +87,6 @@
   letter-spacing: -0.035em;
 }
 
-.messages .messages__profile {
-  flex: none;
-  border-radius: 50%;
-}
-
 .messages .messages__new {
   flex: none;
   width: 40px;
@@ -106,7 +100,6 @@
 
 .messages__new:focus-visible,
 .messages__cta:focus-visible,
-.messages__profile:focus-visible,
 .messages__chip:focus-visible,
 .messages__row:focus-visible {
   outline: 2px solid var(--accent);
@@ -245,7 +238,7 @@
 /* ---------- right pane (desktop) ---------- */
 
 .messages__pane {
-  flex: 999 1 560px;
+  flex: 1 1 0;
   min-width: 0;
   height: 100vh;
   min-height: 480px;

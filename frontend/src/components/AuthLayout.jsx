@@ -32,7 +32,6 @@ export function AuthLayout({ title, titleSuffix, subtitle, children }) {
                     </div>
                 </div>
 
-                <p className="login__copyright">© 2026 Ember</p>
             </section>
 
             <main className="login__main">

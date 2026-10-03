@@ -178,16 +178,23 @@ function ChatThread({ conversation, onBack, onAccepted }) {
         setDraft('')
     }
 
-    // build the visual list: dividers + grouped bubbles
+    // build the visual list: dividers + grouped bubbles.
+    // A "group" is back-to-back messages from the same sender with no time divider between them.
+    const hasDivider = messages.map((m, i) => {
+        const prev = messages[i - 1]
+        if (!prev) return true
+        const gap = new Date(m.createdAt) - new Date(prev.createdAt)
+        return gap >= GAP_FOR_DIVIDER || dayLabel(m.createdAt) !== dayLabel(prev.createdAt)
+    })
+    const startsGroup = messages.map((m, i) => hasDivider[i] || messages[i - 1].sender._id !== m.sender._id)
+
     const items = []
     messages.forEach((m, i) => {
-        const prev = messages[i - 1]
-        const gap = prev ? new Date(m.createdAt) - new Date(prev.createdAt) : Infinity
-        const newDay = prev ? dayLabel(m.createdAt) !== dayLabel(prev.createdAt) : true
-        const divider = gap >= GAP_FOR_DIVIDER || newDay
-        const startsGroup = divider || prev.sender._id !== m.sender._id
+        // the last bubble of a group (the next one starts a new group) gets the tail
+        const endsGroup = i === messages.length - 1 || startsGroup[i + 1]
+        const mine = m.sender._id === me?.id
 
-        if (divider) {
+        if (hasDivider[i]) {
             items.push(
                 <div className="chat__divider" key={`d-${m._id}`}>
                     <strong>{dayLabel(m.createdAt)}</strong> {clockTime(m.createdAt)}
@@ -195,11 +202,10 @@ function ChatThread({ conversation, onBack, onAccepted }) {
             )
         }
 
-        const mine = m.sender._id === me?.id
         items.push(
             <div
                 key={m._id}
-                className={`chat__row ${mine ? 'chat__row--out' : 'chat__row--in'} ${startsGroup ? 'chat__row--start' : ''}`}
+                className={`chat__row ${mine ? 'chat__row--out' : 'chat__row--in'} ${startsGroup[i] ? 'chat__row--start' : ''} ${endsGroup ? 'chat__row--tail' : ''}`}
             >
                 <div className="chat__bubble">{m.content}</div>
             </div>
