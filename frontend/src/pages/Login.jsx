@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { AuthLayout, TextField, PasswordField } from '../components/AuthLayout.jsx'
+import DemoButton from '../components/DemoButton.jsx'
+import { useDemoLogin } from '../helpers/useDemoLogin.js'
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -9,6 +11,7 @@ function Login() {
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const navigate = useNavigate()
+    const { demoLoading, startDemo } = useDemoLogin({ onError: setError })
 
     async function handleSubmit(e) {
         e.preventDefault()
@@ -63,7 +66,9 @@ function Login() {
 
                 {error && <p className="login__error" role="alert">{error}</p>}
 
-                <button type="submit" className="login__submit">Sign in</button>
+                <button type="submit" className="login__submit" disabled={demoLoading}>Sign in</button>
+
+                <DemoButton loading={demoLoading} onClick={startDemo} />
             </form>
 
             <p className="login__switch">

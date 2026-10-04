@@ -1,8 +1,18 @@
 const API_URL = import.meta.env.VITE_API_URL
 
-// Fire-and-forget ping so a sleeping free-tier backend starts waking up the moment the site opens
-export function wakeServer() {
-    fetch(`${API_URL}/api/health`).catch(() => {})
+// Is the backend up? Resolves true/false, never throws. A sleeping free-tier server either
+// times out or answers its first requests with a 503 while it boots, so both count as "not yet".
+export async function checkHealth(timeoutMs = 8000) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+        const res = await fetch(`${API_URL}/api/health`, { signal: controller.signal })
+        return res.ok
+    } catch {
+        return false
+    } finally {
+        clearTimeout(timer)
+    }
 }
 
 // fetch wrapper for protected endpoints: attaches the JWT, and if the backend says the

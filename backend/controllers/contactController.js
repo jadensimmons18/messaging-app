@@ -46,7 +46,8 @@ export const searchUser = async (req, res) => {
         // Must match both parameters username and be "Not Equal"($ne) to userId so that you cant search yourself
         const users = await User.find({ 
             username: { $regex: username, $options: 'i' }, 
-            _id: { $ne: req.userId } 
+            _id: { $ne: req.userId },
+            isDemo: { $ne: true } // don't expose other visitors' throwaway guest accounts
         }).select('username avatarUrl')
         
         return res.status(200).json({message: 'Successful search', users});

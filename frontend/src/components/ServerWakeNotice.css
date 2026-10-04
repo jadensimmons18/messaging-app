@@ -1,0 +1,98 @@
+/* frosted glass, same recipe as the profile menu */
+.wake {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 100; /* above the page; the <dialog> top layer still sits above this */
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  transform: translateX(-50%);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-radius: 18px;
+  background: rgba(45, 41, 39, 0.6);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 18px 40px rgba(0, 0, 0, 0.4);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  animation: wake-in 0.25s ease-out;
+}
+
+.wake *,
+.wake *::before,
+.wake *::after {
+  box-sizing: border-box;
+}
+
+.wake__spinner {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--accent);
+  animation: wake-spin 0.9s linear infinite;
+}
+
+.wake__icon {
+  flex: none;
+  color: #7dd69a;
+}
+
+.wake__text {
+  min-width: 0;
+}
+
+.wake__title,
+.wake__sub {
+  margin: 0;
+}
+
+.wake__title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.wake__sub {
+  max-width: 300px;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.wake__timer {
+  flex: none;
+  min-width: 42px;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums; /* digits keep a fixed width so the timer doesn't jiggle */
+  text-align: right;
+  color: var(--accent);
+}
+
+@keyframes wake-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes wake-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wake,
+  .wake__spinner {
+    animation: none;
+  }
+}

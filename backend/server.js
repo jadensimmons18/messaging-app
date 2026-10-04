@@ -16,6 +16,10 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
+// Behind Render's proxy every request would appear to come from the proxy's IP, which would make
+// per-visitor rate limiting treat everyone as one person. Trust one proxy hop to read the real IP.
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(express.json());
 app.use(cors({ origin: FRONTEND_URL }));

@@ -36,6 +36,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    // true for throwaway guest accounts made by the "Try the demo" button (deleted after a day)
+    isDemo: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
