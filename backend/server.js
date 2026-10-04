@@ -13,11 +13,12 @@ import { registerSocketHandlers } from './sockets/socketHandlers.js';
 
 const app = express();
 
-const PORT = process.env.PORT || 5001
+const PORT = process.env.PORT || 5001;
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({ origin: FRONTEND_URL }));
 app.use(helmet());
  
 // Routes
@@ -25,11 +26,14 @@ app.use('/api/auth', authRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/conversation', conversationRoutes);
 app.use('/api/message', messageRoutes);
+app.get('/api/health', (req, res) => {
+    res.status(200).json({ ok: true });
+});
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: '*',
+        origin: FRONTEND_URL,
     },
 });
 
